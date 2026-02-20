@@ -1,0 +1,32 @@
+---
+title: "DATA 607 - Project 1 (Chess Tournament)"
+author: "Denise Atherley"
+date: "2026-02-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Approach
+
+I will take the provided structured .txt file and upload it into my github repository to ensure my work is reproducible. I will examine the file's information using tidyverse syntax in RStudio and ultimately generate a .csv file with columns for:
+
+"Player's Name"
+
+"Total \# of Points"
+
+"Player's State"
+
+"Player's Pre-Rating"
+
+"Average Pre Chess Rating of Opponents"
+
+Given that the .txt file is formatted in a multi-line structure with pipe delimiters, I believe I will be most challenged by trying to manipulate the columns to create a clean .csv output.
+
+In addition to that, the column for "Average Pre Chess Rating of Opponents" consists of summing all of the player's opponents' Pre-Rating score and dividing by the total number of games played. This includes any wins, losses or draws. I will hand-calculate at least two test cases against my coded results to verify my work.
+
+### LLM support and enhancement
+
+I will use Google Gemini to assist me in generating the correct code to read the structured .txt file and create the needed columns for my .csv output. Because the original .txt file has some mixed formatting, I will likely have to perform the column extraction in a couple of steps. Once those columns are generated, I will then calculate the average pre chess opponent rating.

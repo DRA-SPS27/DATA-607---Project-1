@@ -1,0 +1,218 @@
+---
+title: "DATA 607 - Project 1 (Chess Tournament)"
+author: "Denise Atherley"
+format: html
+editor: visual
+---
+
+## Approach
+
+I will take the provided structured .txt file and upload it into my github repository to ensure my work is reproducible. I will examine the file's information using tidyverse syntax in RStudio and ultimately generate a .csv file with columns for:
+
+"Player's Name"
+
+"Total \# of Points"
+
+"Player's State"
+
+"Player's Pre-Rating"
+
+"Average Pre Chess Rating of Opponents"
+
+Given that the .txt file is formatted in a multi-line structure with pipe delimiters, I believe I will be most challenged by trying to manipulate the columns to create a clean .csv output.
+
+In addition to that, the column for "Average Pre Chess Rating of Opponents" consists of summing all of the player's opponents' Pre-Rating score and dividing by the total number of games played. This includes any wins, losses or draws. I will hand-calculate at least two test cases against my coded results to verify my work.
+
+### LLM support and enhancement
+
+I will use Google Gemini to assist me in generating the correct code to read the structured .txt file and create the needed columns for my .csv output. Because the original .txt file has some mixed formatting, I will likely have to perform the column extraction in a couple of steps. Once those columns are generated, I will then calculate the average pre chess opponent rating.
+
+*AI citation -*
+
+*(Google DeepMind. (2026). Gemini Pro \[Large language model\].*
+
+[*https://gemini.google.com*](https://gemini.google.com)*. Accessed February 19, 2026*
+
+## Code Deliverable:
+
+I ensure that I am able to use tidyverse syntax in my code by loading the necessary package.
+
+```{r}
+library (tidyverse)
+```
+
+I examine the information by loading the data and then previewing the top 5 players.
+
+```{r}
+# Read the .txt file with all lines  
+
+raw_chess_data <- read_lines("https://raw.githubusercontent.com/DRA-SPS27/DATA-607---Project-1/refs/heads/main/tournamentinfo.txt")
+```
+
+```{r}
+#| echo: true 
+
+# Preview first 5 players  
+
+head(raw_chess_data, 19)
+```
+
+### Remove unneeded formatting
+
+I clean up the formatting of the data to prepare my columns
+
+```{r}
+# Remove the dashed separator lines  
+
+clean_chess_data <- raw_chess_data[str_detect(raw_chess_data, "---", negate = TRUE)] 
+```
+
+```{r}
+# Remove the header rows (the first two rows after separators are gone)  
+
+headerless_data <- clean_chess_data[-(1:2)]
+```
+
+### Separate multi-line rows
+
+The data follows a pattern: Row A contains the name and points, while Row B contains the state and rating. I will use indexing to split them.
+
+```{r}
+# All of the odd numbered rows are the "Name" rows  
+
+row_group1 <- headerless_data[seq(1, length(headerless_data), 2)]  
+
+# All of the even numbered rows are the "State/Rating" rows  
+
+row_group2 <- headerless_data[seq(2, length(headerless_data), 2)]
+```
+
+### Extract specific fields
+
+I use read_delim on these subsets to turn the text into columns based on the pipe (\|) delimiter.
+
+```{r}
+library(readr)
+```
+
+```{r}
+# Extract Name and Total Points  
+
+df1 <- read_delim(paste(row_group1, collapse = "\n"),                   
+                  delim = "|", col_names = FALSE, trim_ws = TRUE) %>%   
+  select(Player_Name = X2, Total_Points = X3)
+```
+
+```{r}
+# Extract State and Pre-Rating # I will use regex to pull just the numbers before the "->" in the rating column  
+
+df2 <- read_delim(paste(row_group2, collapse = "\n"),                   
+                  delim = "|", col_names = FALSE, trim_ws = TRUE) %>%   
+  mutate(State = X1,           
+         Pre_Rating = str_extract(X2, "(?<=R: )\\s*\\d+")) %>%   
+  select (State, Pre_Rating)
+```
+
+### Combine needed columns
+
+I bind the columns together and generate a new data frame with the created columns.
+
+```{r}
+# Merge the two pieces side-by-side  
+
+chess_tournament_data <- bind_cols(df1, df2)
+```
+
+## Calculate the Average Pre Chess Rating of Opponents
+
+To calculate the Average Opponent Rating, I need to treat the tournament data like a relational database where I will have each player's unqiue ID along with their opponent's ID for each round. This will allow me to look-up their pre rating score and bring in the average based on games played.
+
+### Extract Opponent IDs
+
+I need to pull the tournament rounds from the row_group1 I created earlier. The opponent IDs are listed after the win/loss/draw indicator (e.g., "W 39" means they played player 39).
+
+```{r}
+# Extract the rounds (Columns 4 - 10 in the pipe-delimited structure)  
+
+opponents_df <- read_delim (paste(row_group1, collapse = "\n"),                            delim = "|", col_names = FALSE, trim_ws = TRUE) %>%   
+  select (Player_ID = X1, X4:X10) %>%   
+  pivot_longer(cols = X4:X10, names_to = "Round", values_to = "Opponent_Info") %>%   
+  mutate(Opponent_ID = as.numeric(str_extract(Opponent_Info, "\\d+"))) #Pulls '39' from 'W 39'
+```
+
+### Create a rating look-up table
+
+I need a simple table where each Player ID is linked to their Pre Rating so I can look up how "strong" each opponent was.
+
+```{r}
+# Use the df2 created previously to make a lookup map  
+
+rating_lookup <- df1 %>%   
+  mutate(Player_ID = row_number(),          
+         Pre_Rating = as.numeric(df2$Pre_Rating)) %>%   
+  select(Player_ID, Pre_Rating)
+```
+
+### Map ratings and calculate average
+
+I will now join the opponent IDs with their actual ratings and calculate the mean for each player
+
+```{r}
+# Join the tables to find the rating for every opponent played  
+
+avg_opp_rating <- opponents_df %>%   
+  left_join(rating_lookup, by = c("Opponent_ID" = "Player_ID")) %>%   
+  group_by(Player_ID) %>%   
+  summarize(avg_opp_rating = round(mean(Pre_Rating, na.rm = TRUE), 0))
+```
+
+```{r}
+#| echo: true 
+# Attach this to final data frame  
+
+chess_tournament_data <- chess_tournament_data %>%   
+  mutate(Player_ID = row_number()) %>%   
+  left_join(avg_opp_rating, by = "Player_ID") %>%   
+  select(-Player_ID)  #Remove the ID helper column before export
+```
+
+```{r}
+#| echo: true 
+# Show preview of newly created data frame  
+
+library(gt)  
+
+gt(chess_tournament_data)
+```
+
+### Manual review of average
+
+I will hand-calculate at least two test cases against my coded results to verify my work.
+
+**Test Case #1 -**
+
+Player 3, **Aditya Bajaj**, played all games. Their opponents' ratings are:
+
+1641, 955, 1745, 1563, 1712, 1666, 1663
+
+This is a total of 10,945 divided by 7 is **1564**
+
+**Test Case #2 -**
+
+Player 16, **Mike Nikitin**, played only 5 games. Their opponents' ratings are:
+
+1365, 1220, 1436, 1553, 1355
+
+This is a total of 6,929 divided by 5 is **1386**
+
+Both tests verified that my code was correct!
+
+## Export .csv file
+
+```{r}
+#| echo: true 
+
+# Write to csv  
+
+write_csv(chess_tournament_data, "chess_tournament_results.csv")
+```
